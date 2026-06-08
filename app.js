@@ -935,7 +935,9 @@ function renderTrackList() {
     listContainer.innerHTML = '';
     listContainer.appendChild(placeholder);
 
-    state.tracks.forEach(track => {
+    const sorted = [...state.tracks].sort((a, b) => b.date.localeCompare(a.date));
+    sorted.forEach(track => {
+
         const card = document.createElement('div');
         card.className = 'track-card';
         card.dataset.id = track.id;
