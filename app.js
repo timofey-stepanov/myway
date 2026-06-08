@@ -751,8 +751,8 @@ function selectTrack(trackId) {
     });
 
     // Populate Sidebar Details Panel
-    document.getElementById('detail-title').textContent = track.pilot;
-    document.getElementById('detail-subtitle').textContent = track.glider;
+    document.getElementById('detail-title').textContent = (track.pilot && track.pilot !== 'Unknown Pilot') ? track.pilot : '—';
+    document.getElementById('detail-subtitle').textContent = (track.glider && track.glider !== 'Unknown Glider') ? track.glider : '—';
     
     // Set paragliding distance stats
     document.getElementById('stat-xc-points').innerHTML = `${track.stats.xcontestPoints || 0.0} <span>pts</span>`;
@@ -857,8 +857,8 @@ function applyFilters() {
     let visibleCount = 0;
 
     state.tracks.forEach(track => {
-        const matchesSearch = track.pilot.toLowerCase().includes(state.filters.search) || 
-                              track.glider.toLowerCase().includes(state.filters.search) ||
+        const matchesSearch = (track.pilot || '').toLowerCase().includes(state.filters.search) || 
+                              (track.glider || '').toLowerCase().includes(state.filters.search) ||
                               track.filename.toLowerCase().includes(state.filters.search);
         
         // Filter by 5-point distance instead of tracklog length
@@ -962,7 +962,7 @@ function renderTrackList() {
                 <div style="display:flex; gap:0.75rem">
                     <div class="track-meta-item">
                         <span>Pilot:</span>
-                        <span class="metric" style="max-width:85px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${track.pilot}</span>
+                        <span class="metric" style="max-width:85px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${track.pilot && track.pilot !== 'Unknown Pilot' ? track.pilot : '—'}</span>
                     </div>
                     <div class="track-meta-item">
                         <span>Points:</span>
@@ -1480,6 +1480,17 @@ async function loadStoredTracks() {
                 const newColor = TRACK_COLORS[(track.id - 1) % TRACK_COLORS.length];
                 if (track.color !== newColor) {
                     track.color = newColor;
+                    needsResave = true;
+                }
+
+                // Migrate placeholder pilot values left by earlier parser bugs
+                if (!track.pilot || track.pilot === 'PILOT' || track.pilot === 'Unknown Pilot') {
+                    track.pilot = 'Unknown Pilot';
+                    needsResave = true;
+                }
+                // Migrate placeholder glider values
+                if (!track.glider || track.glider === 'GLIDER' || track.glider === 'GLIDERTYPE' || track.glider === 'Unknown Glider') {
+                    track.glider = 'Unknown Glider';
                     needsResave = true;
                 }
 
