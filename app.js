@@ -935,7 +935,13 @@ function renderTrackList() {
     listContainer.innerHTML = '';
     listContainer.appendChild(placeholder);
 
-    const sorted = [...state.tracks].sort((a, b) => b.date.localeCompare(a.date));
+    const sorted = [...state.tracks].sort((a, b) => {
+        const dateCompare = b.date.localeCompare(a.date);
+        if (dateCompare !== 0) return dateCompare;
+        const aTime = (a.points && a.points[0]) ? a.points[0].timeSec : 0;
+        const bTime = (b.points && b.points[0]) ? b.points[0].timeSec : 0;
+        return bTime - aTime;
+    });
     sorted.forEach(track => {
 
         const card = document.createElement('div');
