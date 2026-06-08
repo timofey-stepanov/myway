@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyWay - Paragliding Track Visualizer</title>
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- MapLibre GL JS CSS -->
+    <link href="https://unpkg.com/maplibre-gl@4.3.0/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <!-- Google Fonts (Inter & JetBrains Mono) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Feather Icons for modern vector controls -->
+    <script src="https://unpkg.com/feather-icons"></script>
+    
+    <!-- MapLibre GL JS Script -->
+    <script src="https://unpkg.com/maplibre-gl@4.3.0/dist/maplibre-gl.js"></script>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <!-- Mobile Sidebar Toggle -->
+        <button id="sidebar-toggle" class="mobile-sidebar-toggle" aria-label="Toggle Sidebar">
+            <i data-feather="menu"></i>
+        </button>
+
+        <!-- Sidebar Panel -->
+        <aside id="sidebar" class="sidebar">
+            
+            <!-- Header Brand -->
+            <div class="sidebar-header">
+                <div class="brand">
+                    <i data-feather="wind" class="brand-icon"></i>
+                    <h1>MyWay</h1>
+                    <span>IGC</span>
+                </div>
+            </div>
+
+            <!-- Scrollable Controls Content -->
+            <div class="sidebar-content">
+                
+                <!-- File Upload / Drag Zone -->
+                <div id="upload-zone" class="upload-zone">
+                    <i data-feather="upload-cloud" class="upload-icon" style="width: 36px; height: 36px;"></i>
+                    <h3>Import Flight Tracks</h3>
+                    <p>Drag and drop <b>.igc</b> files here or click to browse</p>
+                    <input type="file" id="file-input" accept=".igc,.txt" multiple style="display: none;">
+                </div>
+
+                <!-- Parse Loader Card (Dynamic) -->
+                <div id="loader-container" class="loader-container">
+                    <div class="loader-header">
+                        <span id="loader-text">Parsing files...</span>
+                        <span id="loader-percent">0%</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div id="progress-bar-fill" class="progress-bar-fill"></div>
+                    </div>
+                </div>
+
+                <!-- Quick Action Buttons -->
+                <div class="upload-actions">
+                    <button id="btn-clear-tracks" class="btn" style="width: 100%;">
+                        <i data-feather="trash-2"></i> Clear
+                    </button>
+                </div>
+
+                <!-- Filters & Search Form -->
+                <div class="filters-panel">
+                    <span class="filter-title">Filters</span>
+                    
+                    <!-- Text Search -->
+                    <div class="search-input-wrapper">
+                        <i data-feather="search" class="search-icon" style="width: 16px; height: 16px;"></i>
+                        <input type="text" id="search-input" class="input-field" placeholder="Search by Pilot, Glider, or File...">
+                    </div>
+                    
+                    <!-- Distance Range Slider -->
+                    <div class="range-slider-wrapper">
+                        <div class="slider-labels">
+                            <span>Min Distance</span>
+                            <span id="dist-value" style="font-weight: 600;">All</span>
+                        </div>
+                        <input type="range" id="dist-slider" class="range-slider" min="0" max="50" value="0">
+                    </div>
+                </div>
+
+                <!-- Track List Section -->
+                <div class="tracks-section">
+                    <div class="section-header">
+                        <h2>Loaded Tracks</h2>
+                        <span class="track-count-badge"><span id="filtered-track-count">0</span> / <span id="total-track-count">0</span></span>
+                    </div>
+
+                    <div id="track-list" class="track-list">
+                        <!-- Empty Placeholder State -->
+                        <div id="no-tracks-state" class="no-tracks-state">
+                            <i data-feather="map-pin" style="width: 28px; height: 28px;"></i>
+                            <p>No tracks loaded yet. Drag and drop IGC files or load demos.</p>
+                        </div>
+                        <!-- Cards injected by app.js -->
+                    </div>
+                </div>
+
+            </div> <!-- /sidebar-content -->
+
+            <!-- Slide-Up Track Details & Playback Instrument HUD -->
+            <div id="detail-panel" class="detail-panel">
+                
+                <div class="detail-header">
+                    <div class="detail-title-group">
+                        <h2 id="detail-title" class="detail-title">Pilot Name</h2>
+                        <span id="detail-subtitle" class="detail-subtitle">Glider Type</span>
+                    </div>
+                    <button id="btn-close-details" class="btn-close" aria-label="Close Details">
+                        <i data-feather="x" style="width: 18px; height: 18px;"></i>
+                    </button>
+                </div>
+
+                <div class="detail-body">
+                    
+                    <!-- Telemetry Stats Grid -->
+                    <div class="stats-grid">
+                        <div class="stat-box highlight-box">
+                            <span class="stat-label">XContest Score</span>
+                            <span id="stat-xc-points" class="stat-value">0.0 <span>pts</span></span>
+                        </div>
+                        <div class="stat-box highlight-box">
+                            <span class="stat-label">Scoring Type</span>
+                            <span id="stat-xc-type" class="stat-value" style="font-size:0.85rem; padding-top:4px; font-weight:700;">Open Distance</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">FAI Triangle</span>
+                            <span id="stat-fai" class="stat-value">0.0 <span>km</span></span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Flat Triangle</span>
+                            <span id="stat-flat-fai" class="stat-value">0.0 <span>km</span></span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">5-Pt Distance</span>
+                            <span id="stat-five-point" class="stat-value">0.0 <span>km</span></span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">2-Pt Distance</span>
+                            <span id="stat-two-point" class="stat-value">0.0 <span>km</span></span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Tracklog Length</span>
+                            <span id="stat-dist" class="stat-value">0.0 <span>km</span></span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Duration</span>
+                            <span id="stat-duration" class="stat-value">00:00:00</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Max Altitude</span>
+                            <span id="stat-max-alt" class="stat-value">0 <span>m</span></span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Climb / Sink</span>
+                            <span id="stat-climb-sink" class="stat-value">+0.0 / -0.0 <span>m/s</span></span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Max / Avg Speed</span>
+                            <span id="stat-speed" class="stat-value">0.0 / 0.0 <span>km/h</span></span>
+                        </div>
+                    </div>
+
+                    <!-- Altitude SVG Graph -->
+                    <div class="chart-container-wrapper">
+                        <span class="chart-title">Altitude Profile</span>
+                        <div id="chart-box" class="chart-box">
+                            <!-- Injected by chart.js -->
+                        </div>
+                    </div>
+
+                    <!-- Interactive Flight Simulator HUD -->
+                    <div class="playback-controls">
+                        
+                        <div class="hud-telemetry">
+                            <div class="hud-item">
+                                <span class="hud-label">Altitude</span>
+                                <div id="hud-alt" class="hud-value">0m</div>
+                            </div>
+                            <div class="hud-item">
+                                <span class="hud-label">Speed</span>
+                                <div id="hud-speed" class="hud-value">0 km/h</div>
+                            </div>
+                            <div class="hud-item">
+                                <span class="hud-label">Climb</span>
+                                <div id="hud-climb" class="hud-value">0.0 m/s</div>
+                            </div>
+                            <div class="hud-item">
+                                <span class="hud-label">Glide L/D</span>
+                                <div id="hud-glide" class="hud-value">Flat</div>
+                            </div>
+                        </div>
+
+                        <!-- Scrubber track -->
+                        <div class="playback-slider-row">
+                            <span id="playback-time" class="playback-time-display">00:00:00</span>
+                            <input type="range" id="playback-slider" class="range-slider" style="flex: 1;" min="0" max="100" value="0">
+                        </div>
+
+                        <!-- Simulation Buttons -->
+                        <div class="playback-button-row">
+                            <div class="playback-btn-group">
+                                <button id="btn-play" class="btn btn-primary btn-icon-only" aria-label="Play">
+                                    <i data-feather="play"></i>
+                                </button>
+                                <button id="btn-speed" class="speed-badge-btn" title="Cycle Playback Speed">10x</button>
+                            </div>
+
+                            <label style="font-size: 0.75rem; color: var(--color-text-muted); display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+                                <input type="checkbox" id="follow-glider" checked style="accent-color: var(--color-primary);">
+                                Follow Glider
+                            </label>
+                        </div>
+
+                    </div>
+
+                </div> <!-- /detail-body -->
+
+            </div> <!-- /detail-panel -->
+
+        </aside>
+
+        <!-- Fullscreen WebGL Map Area -->
+        <main class="map-container">
+            <div id="map"></div>
+        </main>
+
+    </div>
+
+    <!-- Application Script Modules -->
+    <script src="parser.js?v=2"></script>
+    <script src="chart.js?v=2"></script>
+    <script src="app.js?v=2"></script>
+
+</body>
+</html>
