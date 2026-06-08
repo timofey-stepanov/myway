@@ -103,11 +103,11 @@ function initMap() {
         style: {
             version: 8,
             sources: {
-                'terrain-tiles': {
+                'light-base': {
                     type: 'raster',
-                    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}'],
+                    tiles: ['https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png'],
                     tileSize: 256,
-                    attribution: 'Tiles © Esri — Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+                    attribution: 'Tiles © CartoDB — Attribution: CartoDB Positron'
                 },
                 'dark-base': {
                     type: 'raster',
@@ -124,9 +124,9 @@ function initMap() {
             },
             layers: [
                 {
-                    id: 'terrain-tiles-layer',
+                    id: 'light-base-layer',
                     type: 'raster',
-                    source: 'terrain-tiles',
+                    source: 'light-base',
                     minzoom: 0,
                     maxzoom: 20,
                     layout: {
@@ -150,7 +150,7 @@ function initMap() {
                     minzoom: 0,
                     maxzoom: 20,
                     layout: {
-                        visibility: isDark ? 'visible' : 'none'
+                        visibility: 'visible'
                     },
                     paint: {
                         'raster-opacity': 0.22
@@ -366,9 +366,8 @@ function updateMapTheme(isDark) {
     if (!map || !isMapLoaded) return;
     
     // Switch visibility of map layers
-    map.setLayoutProperty('terrain-tiles-layer', 'visibility', isDark ? 'none' : 'visible');
+    map.setLayoutProperty('light-base-layer', 'visibility', isDark ? 'none' : 'visible');
     map.setLayoutProperty('dark-base-layer', 'visibility', isDark ? 'visible' : 'none');
-    map.setLayoutProperty('hillshade-layer', 'visibility', isDark ? 'visible' : 'none');
 }
 
 
@@ -563,7 +562,7 @@ function drawTrackOnMap(track) {
             paint: {
                 'line-color': track.color,
                 'line-width': 3.0,
-                'line-opacity': 0.75
+                'line-opacity': 0.65
             }
         });
     });
@@ -831,7 +830,7 @@ function setTrackLineHighlight(trackId, isHighlighted) {
         const track = state.tracks.find(t => t.id === trackId);
         const color = track ? track.color : TRACK_COLORS[0];
         map.setPaintProperty(layerId, 'line-width', 3.0);
-        map.setPaintProperty(layerId, 'line-opacity', 0.75);
+        map.setPaintProperty(layerId, 'line-opacity', 0.65);
     }
 }
 
