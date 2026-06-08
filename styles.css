@@ -784,9 +784,9 @@ body {
     background: transparent !important;
 }
 
-/* Map Controls Custom Styling (Light Theme) */
+/* Map Controls Custom Styling */
 .maplibregl-ctrl-group {
-    background: rgba(255, 255, 255, 0.9) !important;
+    background: var(--color-bg-panel) !important;
     backdrop-filter: blur(8px);
     border: 1px solid var(--border-color) !important;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
@@ -862,4 +862,61 @@ body {
 .track-card:hover .delete-btn:hover {
     opacity: 1;
     color: var(--color-danger) !important;
+}
+
+/* Theme Toggle Button styling */
+.theme-toggle-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    color: var(--color-text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
+}
+
+.theme-toggle-btn:hover {
+    background-color: var(--border-color);
+    color: var(--color-primary);
+}
+
+.theme-toggle-btn .theme-icon {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+/* Dark Theme Variables Override */
+body.dark-theme {
+    --color-bg-deep: #0f172a;       /* Slate 900 */
+    --color-bg-panel: rgba(30, 41, 59, 0.85); /* Slate 800 semi-transparent */
+    --color-bg-card: rgba(30, 41, 59, 0.9);
+    --color-bg-card-hover: #1e293b;
+    --color-bg-active: rgba(129, 140, 248, 0.15); /* Indigo tint */
+    
+    --color-primary: #818cf8;       /* Indigo 400 */
+    --color-primary-hover: #a5b4fc; /* Indigo 300 */
+    --color-primary-glow: rgba(129, 140, 248, 0.3);
+    
+    --color-secondary: #34d399;     /* Emerald 400 */
+    --color-secondary-glow: rgba(52, 211, 153, 0.2);
+    
+    --color-danger: #f87171;        /* Rose Red 400 */
+    
+    --color-text-main: #f8fafc;     /* Slate 50 */
+    --color-text-muted: #cbd5e1;   /* Slate 300 */
+    --color-text-dim: #64748b;     /* Slate 500 */
+    
+    --border-color: rgba(255, 255, 255, 0.08);
+    --border-color-active: rgba(129, 140, 248, 0.4);
+    
+    --shadow-main: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+    --shadow-glow: 0 0 15px rgba(129, 140, 248, 0.2);
+    
+    --chart-grid: #334155;          /* Slate 700 */
+    --color-tooltip-bg: rgba(15, 23, 42, 0.98);
+    --color-tooltip-text: #f8fafc;
 }

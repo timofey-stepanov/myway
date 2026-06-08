@@ -64,6 +64,13 @@ function runWhenMapLoaded(fn) {
 
 // Initialize Application once DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
+    // Restore theme from localStorage
+    const savedTheme = localStorage.getItem('myway_theme');
+    const isDark = savedTheme === 'dark';
+    if (isDark) {
+        document.body.classList.add('dark-theme');
+    }
+
     initMap();
     initUI();
     loadStoredTracks(); // Load persisted flights from database
@@ -88,7 +95,9 @@ function initMap() {
         console.error('Failed to load map position from localStorage:', e);
     }
 
-    // Initialize MapLibre GL JS with ESRI World Topo Map (Light Terrain)
+    const isDark = document.body.classList.contains('dark-theme');
+
+    // Initialize MapLibre GL JS with all basemaps pre-defined
     map = new maplibregl.Map({
         container: 'map',
         style: {
@@ -96,11 +105,21 @@ function initMap() {
             sources: {
                 'terrain-tiles': {
                     type: 'raster',
-                    tiles: [
-                        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}'
-                    ],
+                    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}'],
                     tileSize: 256,
                     attribution: 'Tiles © Esri — Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+                },
+                'dark-base': {
+                    type: 'raster',
+                    tiles: ['https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png'],
+                    tileSize: 256,
+                    attribution: 'Tiles © CartoDB — Attribution: CartoDB Dark Matter'
+                },
+                'hillshade-relief': {
+                    type: 'raster',
+                    tiles: ['https://services.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}'],
+                    tileSize: 256,
+                    attribution: 'Tiles © Esri — Source: Esri World Hillshade'
                 }
             },
             layers: [
@@ -109,7 +128,33 @@ function initMap() {
                     type: 'raster',
                     source: 'terrain-tiles',
                     minzoom: 0,
-                    maxzoom: 20
+                    maxzoom: 20,
+                    layout: {
+                        visibility: isDark ? 'none' : 'visible'
+                    }
+                },
+                {
+                    id: 'dark-base-layer',
+                    type: 'raster',
+                    source: 'dark-base',
+                    minzoom: 0,
+                    maxzoom: 20,
+                    layout: {
+                        visibility: isDark ? 'visible' : 'none'
+                    }
+                },
+                {
+                    id: 'hillshade-layer',
+                    type: 'raster',
+                    source: 'hillshade-relief',
+                    minzoom: 0,
+                    maxzoom: 20,
+                    layout: {
+                        visibility: isDark ? 'visible' : 'none'
+                    },
+                    paint: {
+                        'raster-opacity': 0.22
+                    }
                 }
             ]
         },
@@ -287,8 +332,43 @@ function initUI() {
         state.playback.follow = e.target.checked;
     });
 
+    // Setup Theme Toggle
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    if (themeToggleBtn) {
+        const isDark = document.body.classList.contains('dark-theme');
+        const themeIcon = themeToggleBtn.querySelector('.theme-icon');
+        if (themeIcon) {
+            themeIcon.setAttribute('data-feather', isDark ? 'sun' : 'moon');
+        }
+        themeToggleBtn.addEventListener('click', toggleTheme);
+    }
+
     // Convert static icons to SVGs on startup
     feather.replace();
+}
+
+function toggleTheme() {
+    const isDark = document.body.classList.toggle('dark-theme');
+    localStorage.setItem('myway_theme', isDark ? 'dark' : 'light');
+
+    // Update theme toggle icon
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    if (themeToggleBtn) {
+        themeToggleBtn.innerHTML = `<i data-feather="${isDark ? 'sun' : 'moon'}" class="theme-icon"></i>`;
+        feather.replace();
+    }
+
+    // Update map style if map is initialized and loaded
+    updateMapTheme(isDark);
+}
+
+function updateMapTheme(isDark) {
+    if (!map || !isMapLoaded) return;
+    
+    // Switch visibility of map layers
+    map.setLayoutProperty('terrain-tiles-layer', 'visibility', isDark ? 'none' : 'visible');
+    map.setLayoutProperty('dark-base-layer', 'visibility', isDark ? 'visible' : 'none');
+    map.setLayoutProperty('hillshade-layer', 'visibility', isDark ? 'visible' : 'none');
 }
 
 
