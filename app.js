@@ -958,36 +958,24 @@ function renderTrackList() {
         const min = Math.floor((track.stats.duration % 3600) / 60);
         const durationStr = hr > 0 ? `${hr}h ${min}m` : `${min}m`;
 
+        const takeoffTime = (track.points && track.points[0]) ? track.points[0].timeStr.substring(0, 5) : '';
+        const cardTitle = takeoffTime ? `${track.date} · ${takeoffTime}` : track.date;
+
         card.innerHTML = `
             <div class="track-card-header">
-                <span class="track-card-title" title="${track.filename}">${track.filename}</span>
-                <div style="display:flex; align-items:center; gap:0.5rem">
-                    <span class="track-card-date">${track.date}</span>
-                    <button class="delete-btn" data-id="${track.id}" title="Delete Flight">🗑</button>
-                </div>
+                <span class="track-card-title" title="${track.filename}">${cardTitle}</span>
+                <button class="delete-btn" data-id="${track.id}" title="Delete Flight">🗑</button>
             </div>
-            <div class="track-card-meta" style="display:flex; justify-content:space-between; align-items:center">
-                <div style="display:flex; gap:0.75rem">
-                    <div class="track-meta-item">
-                        <span>Pilot:</span>
-                        <span class="metric" style="max-width:85px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${track.pilot && track.pilot !== 'Unknown Pilot' ? track.pilot : '—'}</span>
-                    </div>
-                    <div class="track-meta-item">
-                        <span>Points:</span>
-                        <span class="metric" style="font-weight:700; color:var(--color-primary)">${track.stats.xcontestPoints || 0.0} pts</span>
-                    </div>
-                </div>
-                <div class="track-meta-item" style="margin-left:auto">
-                    <span>Time:</span>
-                    <span class="metric">${durationStr}</span>
-                </div>
-            </div>
-            <div style="display:flex; align-items:center; margin-top:4px; font-size:0.75rem; color:var(--color-text-muted)">
-                <span style="background:rgba(79, 70, 229, 0.08); color:var(--color-primary); font-weight:600; padding:1px 5px; border-radius:4px; display:inline-flex; align-items:center; gap:3px">
-                    ${(track.stats.xcontestType || 'Open Distance') === 'FAI Triangle' ? `▲ FAI Triangle: ${track.stats.faiTriangle} km` : 
-                      (track.stats.xcontestType || 'Open Distance') === 'Flat Triangle' ? `▲ Flat Triangle: ${track.stats.flatTriangle} km` : 
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:5px">
+                <span style="background:rgba(79, 70, 229, 0.08); color:var(--color-primary); font-weight:600; font-size:0.75rem; padding:1px 6px; border-radius:4px; display:inline-flex; align-items:center; gap:3px">
+                    ${(track.stats.xcontestType || 'Open Distance') === 'FAI Triangle' ? `▲ FAI Triangle: ${track.stats.faiTriangle} km` :
+                      (track.stats.xcontestType || 'Open Distance') === 'Flat Triangle' ? `▲ Flat Triangle: ${track.stats.flatTriangle} km` :
                       `➔ Open Distance: ${track.stats.fivePoint} km`}
                 </span>
+                <div class="track-meta-item">
+                    <span>Duration:</span>
+                    <span class="metric">${durationStr}</span>
+                </div>
             </div>
         `;
 
