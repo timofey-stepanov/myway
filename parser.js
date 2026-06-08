@@ -255,20 +255,21 @@ class IGCParser {
      * Extracts values for headers
      */
     static _parseHeaderField(line, keywords) {
+        // IGC H-records always use ':' as the separator (e.g. HFPLTPILOTINCHARGE:John)
+        // Use the colon as the primary split point — everything after it is the value.
+        const colonIdx = line.indexOf(':');
+        if (colonIdx !== -1) {
+            const val = line.substring(colonIdx + 1).trim();
+            if (val) return val;
+            return null; // Field present but empty (e.g. "HFPLTPILOT:")
+        }
+        // Fallback for malformed lines without a colon: try keyword-based extraction
         for (const kw of keywords) {
             const index = line.indexOf(kw);
             if (index !== -1) {
-                let val = line.substring(index + kw.length).trim();
-                if (val.startsWith(':')) {
-                    val = val.substring(1).trim();
-                }
-                val = val.replace(/^(?:INCHARGE|TYPE|ID|NAME):/i, '').trim();
+                const val = line.substring(index + kw.length).trim();
                 if (val) return val;
             }
-        }
-        const colonIdx = line.indexOf(':');
-        if (colonIdx !== -1) {
-            return line.substring(colonIdx + 1).trim();
         }
         return null;
     }

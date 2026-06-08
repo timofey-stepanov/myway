@@ -1483,12 +1483,28 @@ async function loadStoredTracks() {
                     needsResave = true;
                 }
 
-                // Migrate placeholder pilot values left by earlier parser bugs
+                // Migrate stale pilot values written by old parser bugs
+                // e.g. "PILOT:Timofey Stepanov", "PILOTINCHARGE:John", "PILOT:"
+                if (track.pilot) {
+                    const pilotClean = track.pilot.replace(/^(?:PILOTINCHARGE|PILOT|PLT):/i, '').trim();
+                    if (pilotClean !== track.pilot) {
+                        track.pilot = pilotClean || 'Unknown Pilot';
+                        needsResave = true;
+                    }
+                }
                 if (!track.pilot || track.pilot === 'PILOT' || track.pilot === 'Unknown Pilot') {
                     track.pilot = 'Unknown Pilot';
                     needsResave = true;
                 }
-                // Migrate placeholder glider values
+                // Migrate stale glider values
+                // e.g. "GLIDERTYPE:Advance Sigma", "GLIDER:..."
+                if (track.glider) {
+                    const gliderClean = track.glider.replace(/^(?:GLIDERTYPE|GLIDER|GTY):/i, '').trim();
+                    if (gliderClean !== track.glider) {
+                        track.glider = gliderClean || 'Unknown Glider';
+                        needsResave = true;
+                    }
+                }
                 if (!track.glider || track.glider === 'GLIDER' || track.glider === 'GLIDERTYPE' || track.glider === 'Unknown Glider') {
                     track.glider = 'Unknown Glider';
                     needsResave = true;
