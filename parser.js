@@ -18,6 +18,8 @@ class IGCParser {
         let pilot = 'Unknown Pilot';
         let gliderType = 'Unknown Glider';
         let gliderId = '';
+        let site = '';
+        const rawHeaders = [];
 
         // Pre-scan to count B-records for dynamic downsampling
         let bRecordCount = 0;
@@ -69,6 +71,7 @@ class IGCParser {
             const recordType = line[0];
 
             if (recordType === 'H') {
+                rawHeaders.push(line.replace(/\r$/, ''));
                 if (line.includes('DTE')) {
                     date = this._parseDate(line) || date;
                 } else if (line.includes('PLT') || line.includes('PILOT')) {
@@ -77,6 +80,8 @@ class IGCParser {
                     gliderType = this._parseHeaderField(line, ['GTY', 'GLIDER']) || gliderType;
                 } else if (line.includes('GID') || line.includes('GLIDERID')) {
                     gliderId = this._parseHeaderField(line, ['GID', 'GLIDERID']) || gliderId;
+                } else if (line.includes('SIT')) {
+                    site = this._parseHeaderField(line, ['SIT']) || site;
                 }
             } else if (recordType === 'B') {
                 if (line.length < 35) continue;
@@ -225,11 +230,24 @@ class IGCParser {
 
         const glider = gliderId ? `${gliderType} (${gliderId})` : gliderType;
 
+        // Convert trailing ",CC" country code to flag emoji (e.g. ",CH" → 🇨🇭)
+        if (site) {
+            const match = site.match(/^(.*),([A-Z]{2})$/);
+            if (match) {
+                const flag = [...match[2]].map(c =>
+                    String.fromCodePoint(c.codePointAt(0) + 0x1F1A5)
+                ).join('');
+                site = `${match[1].trim()} ${flag}`;
+            }
+        }
+
         return {
             filename,
             date,
             pilot,
             glider,
+            site,
+            rawHeaders,
             points,
             stats
         };

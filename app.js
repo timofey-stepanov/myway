@@ -959,13 +959,18 @@ function renderTrackList() {
         const durationStr = hr > 0 ? `${hr}h ${min}m` : `${min}m`;
 
         const takeoffTime = (track.points && track.points[0]) ? track.points[0].timeStr.substring(0, 5) : '';
-        const cardTitle = takeoffTime ? `${track.date} · ${takeoffTime}` : track.date;
+        const [y, m, d] = track.date.split('-');
+        const monthName = new Date(+y, +m - 1).toLocaleString('en', { month: 'short' });
+        const cardTitle = takeoffTime
+            ? `${+d} ${monthName} ${y} at ${takeoffTime}`
+            : `${+d} ${monthName} ${y}`;
 
         card.innerHTML = `
             <div class="track-card-header">
                 <span class="track-card-title" title="${track.filename}">${cardTitle}</span>
                 <button class="delete-btn" data-id="${track.id}" title="Delete Flight">🗑</button>
             </div>
+            ${track.site ? `<div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">📍 ${track.site}</div>` : ''}
             <div style="display:flex; align-items:center; justify-content:space-between; margin-top:5px">
                 <span style="background:rgba(79, 70, 229, 0.08); color:var(--color-primary); font-weight:600; font-size:0.75rem; padding:1px 6px; border-radius:4px; display:inline-flex; align-items:center; gap:3px">
                     ${(track.stats.xcontestType || 'Open Distance') === 'FAI Triangle' ? `▲ FAI Triangle: ${track.stats.faiTriangle} km` :
@@ -1509,6 +1514,31 @@ async function loadStoredTracks() {
                     needsResave = true;
                 }
 
+                // Migrate site field
+                if (!('site' in track)) {
+                    // Field didn't exist yet — parse from rawHeaders if available
+                    track.site = '';
+                    if (track.rawHeaders && track.rawHeaders.length) {
+                        const siteLine = track.rawHeaders.find(l => l.includes('SIT'));
+                        if (siteLine) track.site = IGCParser._parseHeaderField(siteLine, ['SIT']) || '';
+                    }
+                    needsResave = true;
+                }
+                // Apply country-code → flag conversion if not yet done
+                if (track.site && /,[A-Z]{2}$/.test(track.site)) {
+                    const m = track.site.match(/^(.*),([A-Z]{2})$/);
+                    if (m) {
+                        const flag = [...m[2]].map(c => String.fromCodePoint(c.codePointAt(0) + 0x1F1A5)).join('');
+                        track.site = `${m[1].trim()} ${flag}`;
+                        needsResave = true;
+                    }
+                }
+                // Ensure rawHeaders is always present
+                if (!track.rawHeaders) {
+                    track.rawHeaders = [];
+                    needsResave = true;
+                }
+
                 if (!track.stats || track.stats.scoringVersion !== 2) {
                     const xcStats = XCSolver.solve(track.points || []);
                     track.stats = track.stats || {};
@@ -1638,6 +1668,8 @@ class StorageManager {
                 date: track.date,
                 pilot: track.pilot,
                 glider: track.glider,
+                site: track.site || '',
+                rawHeaders: track.rawHeaders || [],
                 points: track.points,
                 stats: track.stats,
                 color: track.color
