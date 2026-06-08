@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
     <title>MyWay - Paragliding Track Visualizer</title>
     
     <!-- Stylesheets -->
@@ -97,13 +99,13 @@
                 <!-- Track List Section -->
                 <div class="tracks-section">
                     <div class="section-header">
-                        <h2>Loaded Tracks</h2>
+                        <h2 id="track-list-title">Loading Tracks…</h2>
                         <span class="track-count-badge"><span id="filtered-track-count">0</span> / <span id="total-track-count">0</span></span>
                     </div>
 
                     <div id="track-list" class="track-list">
-                        <!-- Empty Placeholder State -->
-                        <div id="no-tracks-state" class="no-tracks-state">
+                        <!-- Empty Placeholder State (hidden until DB load confirms no tracks) -->
+                        <div id="no-tracks-state" class="no-tracks-state" style="display:none">
                             <i data-feather="map-pin" style="width: 28px; height: 28px;"></i>
                             <p>No tracks loaded yet. Drag and drop IGC files or load demos.</p>
                         </div>

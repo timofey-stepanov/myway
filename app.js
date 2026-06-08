@@ -1005,6 +1005,9 @@ function renderTrackList() {
 
         listContainer.appendChild(card);
     });
+
+    // Show/hide empty state based on whether any cards were rendered
+    placeholder.style.display = sorted.length === 0 ? '' : 'none';
 }
 
 // --- HUD Flight Simulation / Playback ---
@@ -1540,13 +1543,26 @@ async function loadStoredTracks() {
             runWhenMapLoaded(() => {
                 drawStoredTracks();
             });
+        } else {
+            // No stored tracks — reveal empty state
+            document.getElementById('no-tracks-state').style.display = '';
+            setTrackListTitle('Loaded Tracks');
         }
     } catch (err) {
         console.error('Failed to load stored tracks from database:', err);
+        document.getElementById('no-tracks-state').style.display = '';
+        setTrackListTitle('Loaded Tracks');
     }
 }
 
+function setTrackListTitle(text) {
+    const el = document.getElementById('track-list-title');
+    if (el) el.textContent = text;
+}
+
 function drawStoredTracks() {
+    setTrackListTitle('Loaded Tracks');
+
     state.tracks.forEach(track => {
         drawTrackOnMap(track);
     });
