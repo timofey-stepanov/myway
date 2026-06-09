@@ -332,6 +332,12 @@ function initUI() {
         state.playback.follow = e.target.checked;
     });
 
+    // Toggle Color button listener
+    const btnToggleColor = document.getElementById('btn-toggle-color');
+    if (btnToggleColor) {
+        btnToggleColor.addEventListener('click', toggleActiveTrackColor);
+    }
+
     // Setup Theme Toggle
     const themeToggleBtn = document.getElementById('theme-toggle');
     if (themeToggleBtn) {
@@ -649,8 +655,64 @@ function selectTrack(trackId) {
     const detailPanel = document.getElementById('detail-panel');
     detailPanel.classList.add('open');
 
+    // Set current color in the preview square
+    const square = document.getElementById('color-preview-square');
+    if (square) {
+        square.style.backgroundColor = track.color;
+    }
+
     // Highlight active card in sidebar list
     updateActiveSidebarCard();
+}
+
+function toggleActiveTrackColor() {
+    if (state.activeTrackId === null) return;
+    const track = state.tracks.find(t => t.id === state.activeTrackId);
+    if (!track) return;
+
+    // Find current color index in TRACK_COLORS
+    const currentIdx = TRACK_COLORS.indexOf(track.color);
+    // Get next color index (cycle back to 0 if not found or at the end)
+    const nextIdx = (currentIdx === -1) ? 0 : (currentIdx + 1) % TRACK_COLORS.length;
+    const nextColor = TRACK_COLORS[nextIdx];
+
+    // Update track color in state
+    track.color = nextColor;
+
+    // Update map layer line-color if it exists
+    const layerId = `layer-track-${track.id}`;
+    if (map && map.getLayer(layerId)) {
+        map.setPaintProperty(layerId, 'line-color', nextColor);
+    }
+
+    // Update the color square inside the toggle button
+    const square = document.getElementById('color-preview-square');
+    if (square) {
+        square.style.backgroundColor = nextColor;
+    }
+
+    // Update playback marker color if active and exists
+    if (state.playback.marker) {
+        const markerEl = state.playback.marker.getElement();
+        if (markerEl) {
+            markerEl.style.backgroundColor = nextColor;
+            const pulseEl = markerEl.firstChild;
+            if (pulseEl) {
+                pulseEl.style.borderColor = nextColor;
+            }
+        }
+    }
+
+    // Update the track card style in the sidebar list
+    const card = document.querySelector(`.track-card[data-id="${track.id}"]`);
+    if (card) {
+        card.style.setProperty('--track-color', nextColor);
+    }
+
+    // Save updated track to IndexedDB
+    StorageManager.saveTrack(track).catch(err => {
+        console.error('Failed to save color-toggled track:', err);
+    });
 }
 
 function deselectTrack() {
