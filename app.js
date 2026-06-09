@@ -1502,6 +1502,7 @@ async function loadStoredTracks() {
             state.nextId = maxId + 1;
 
             const shouldRandomizeAll = !localStorage.getItem('myway_colors_randomized');
+            let migratedCount = 0;
 
             for (let i = 0; i < stored.length; i++) {
                 const track = stored[i];
@@ -1566,6 +1567,7 @@ async function loadStoredTracks() {
                 }
 
                 if (!track.stats || track.stats.scoringVersion !== 4) {
+                    migratedCount++;
                     track.stats = track.stats || {};
                     
                     // 1. Coordinate Sanity Filter: Filter out any (0,0) coordinates from track.points
@@ -1666,6 +1668,10 @@ async function loadStoredTracks() {
 
                 track.visible = true;
                 state.tracks.push(track);
+            }
+
+            if (migratedCount > 0) {
+                showMigrationModal();
             }
 
             if (shouldRandomizeAll) {
@@ -1818,4 +1824,60 @@ class StorageManager {
             request.onerror = () => reject(request.error);
         });
     }
+}
+
+function showMigrationModal() {
+    // Check if modal already exists to prevent duplicate rendering
+    if (document.getElementById('migration-modal')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'migration-modal';
+    overlay.className = 'modal-overlay';
+
+    overlay.innerHTML = `
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <i data-feather="info" class="modal-icon"></i>
+                <h2>Scoring Mechanism Updated</h2>
+            </div>
+            <div class="modal-body">
+                <p>The scoring mechanism has been updated to version 4, which filters out GPS initialization errors and resolves unrealistic max speed/climb telemetry spikes.</p>
+                <p>Your uploaded tracks have been automatically migrated, but to get the best results (full high-resolution cleaning), we recommend clearing them and importing them again.</p>
+            </div>
+            <div class="modal-actions" style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <button class="btn btn-danger btn-modal-clear">Clear my tracks</button>
+                <button class="btn btn-primary btn-modal-close">Got it</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Replace static feather icons
+    if (window.feather) {
+        feather.replace();
+    }
+
+    // Trigger animate-in after appending to DOM
+    requestAnimationFrame(() => {
+        overlay.classList.add('open');
+    });
+
+    const closeBtn = overlay.querySelector('.btn-modal-close');
+    closeBtn.addEventListener('click', () => {
+        overlay.classList.remove('open');
+        // Wait for fade-out transition before removing from DOM
+        setTimeout(() => {
+            overlay.remove();
+        }, 300);
+    });
+
+    const clearBtn = overlay.querySelector('.btn-modal-clear');
+    clearBtn.addEventListener('click', () => {
+        clearAllTracks();
+        overlay.classList.remove('open');
+        setTimeout(() => {
+            overlay.remove();
+        }, 300);
+    });
 }
