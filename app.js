@@ -1565,10 +1565,13 @@ async function loadStoredTracks() {
                     needsResave = true;
                 }
 
-                if (!track.stats || track.stats.scoringVersion !== 2) {
+                if (!track.stats || track.stats.scoringVersion !== 3) {
                     const xcStats = XCSolver.solve(track.points || []);
                     track.stats = track.stats || {};
                     Object.assign(track.stats, xcStats);
+                    if (track.stats.duration > 0) {
+                        track.stats.avgSpeed = Math.round((xcStats.fivePoint / (track.stats.duration / 3600)) * 10) / 10;
+                    }
                     needsResave = true;
                 }
 

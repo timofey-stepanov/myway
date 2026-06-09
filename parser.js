@@ -214,7 +214,7 @@ class IGCParser {
 
         stats.heightGain = Math.max(0, stats.maxAlt - stats.startAlt);
         if (stats.duration > 0) {
-            stats.avgSpeed = Math.round((stats.distance / (stats.duration / 3600)) * 10) / 10;
+            stats.avgSpeed = Math.round((stats.fivePoint / (stats.duration / 3600)) * 10) / 10;
         }
 
         stats.maxSpeed = Math.round(stats.maxSpeed * 10) / 10;
@@ -579,7 +579,7 @@ class XCSolver {
 
         result.xcontestPoints = Math.round(bestPoints * 100) / 100;
         result.xcontestType = bestType;
-        result.scoringVersion = 2;
+        result.scoringVersion = 3;
 
         return result;
     }
