@@ -120,12 +120,26 @@
                 
                 <div class="detail-header">
                     <div class="detail-title-group">
-                        <h2 id="detail-title" class="detail-title">Pilot Name</h2>
-                        <span id="detail-subtitle" class="detail-subtitle">Glider</span>
+                        <h2 id="detail-title" class="detail-title" style="font-size: 0.95rem;">Date</h2>
                     </div>
-                    <button id="btn-close-details" class="btn-close" aria-label="Close Details">
-                        <i data-feather="x" style="width: 18px; height: 18px;"></i>
-                    </button>
+                    <div style="display: flex; align-items: center; gap: 0.25rem; margin-left: auto;">
+                        <button id="btn-detail-toggle-visibility" class="btn-close" title="Hide/Show Flight">
+                            <i id="icon-detail-visibility" data-feather="eye" style="width: 16px; height: 16px;"></i>
+                        </button>
+                        <button id="btn-detail-delete" class="btn-close" title="Delete Flight">
+                            <i data-feather="trash-2" style="width: 16px; height: 16px;"></i>
+                        </button>
+                        <button id="btn-close-details" class="btn-close" aria-label="Close Details">
+                            <i data-feather="x" style="width: 18px; height: 18px;"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Flight Metadata Summary -->
+                <div class="detail-metadata-summary">
+                    <div>Pilot: <span id="detail-pilot">—</span></div>
+                    <div>Glider: <span id="detail-glider">—</span></div>
+                    <div id="detail-takeoff" style="display: none;">Takeoff: <span id="detail-takeoff-site">—</span></div>
                 </div>
 
                 <div class="detail-body">

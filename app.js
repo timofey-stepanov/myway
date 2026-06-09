@@ -311,9 +311,30 @@ function initUI() {
 
     // Selection Details panel close
     const btnCloseDetails = document.getElementById('btn-close-details');
-    btnCloseDetails.addEventListener('click', () => {
-        deselectTrack();
-    });
+    if (btnCloseDetails) {
+        btnCloseDetails.addEventListener('click', () => {
+            deselectTrack();
+        });
+    }
+
+    // Detail panel actions
+    const btnDetailToggleVisibility = document.getElementById('btn-detail-toggle-visibility');
+    if (btnDetailToggleVisibility) {
+        btnDetailToggleVisibility.addEventListener('click', () => {
+            if (state.activeTrackId !== null) {
+                toggleTrackVisibility(state.activeTrackId);
+            }
+        });
+    }
+
+    const btnDetailDelete = document.getElementById('btn-detail-delete');
+    if (btnDetailDelete) {
+        btnDetailDelete.addEventListener('click', () => {
+            if (state.activeTrackId !== null) {
+                deleteSingleTrack(state.activeTrackId);
+            }
+        });
+    }
 
     // Replay controls
     const btnPlay = document.getElementById('btn-play');
@@ -620,9 +641,35 @@ function selectTrack(trackId) {
         duration: 1000
     });
 
+    // Format flight date for detail title
+    const takeoffTime = (track.points && track.points[0]) ? track.points[0].timeStr.substring(0, 5) : '';
+    const [y, m, d] = track.date.split('-');
+    const monthName = new Date(+y, +m - 1).toLocaleString('en', { month: 'short' });
+    const formattedDate = takeoffTime
+        ? `${+d} ${monthName} ${y} at ${takeoffTime}`
+        : `${+d} ${monthName} ${y}`;
+
     // Populate Sidebar Details Panel
-    document.getElementById('detail-title').textContent = (track.pilot && track.pilot !== 'Unknown Pilot') ? track.pilot : '—';
-    document.getElementById('detail-subtitle').textContent = (track.glider && track.glider !== 'Unknown Glider') ? track.glider : '—';
+    document.getElementById('detail-title').textContent = formattedDate;
+    document.getElementById('detail-pilot').textContent = (track.pilot && track.pilot !== 'Unknown Pilot') ? track.pilot : '—';
+    document.getElementById('detail-glider').textContent = (track.glider && track.glider !== 'Unknown Glider') ? track.glider : '—';
+
+    // Set takeoff site details
+    const takeoffEl = document.getElementById('detail-takeoff');
+    if (track.site) {
+        document.getElementById('detail-takeoff-site').textContent = track.site;
+        takeoffEl.style.display = 'block';
+    } else {
+        takeoffEl.style.display = 'none';
+    }
+
+    // Sync active track visibility icon in header
+    const detailVisibilityIcon = document.getElementById('icon-detail-visibility');
+    if (detailVisibilityIcon) {
+        const isHidden = track.userVisible === false;
+        detailVisibilityIcon.setAttribute('data-feather', isHidden ? 'eye-off' : 'eye');
+        feather.replace();
+    }
     
     // Set paragliding distance stats
     document.getElementById('stat-xc-points').innerHTML = `${track.stats.xcontestPoints || 0.0} <span>pts</span>`;
@@ -796,7 +843,8 @@ function applyFilters() {
         // Toggle layer on MapLibre
         const layerId = `layer-track-${track.id}`;
         if (map.getLayer(layerId)) {
-            map.setLayoutProperty(layerId, 'visibility', isVisible ? 'visible' : 'none');
+            const mapVisible = isVisible && (track.userVisible !== false);
+            map.setLayoutProperty(layerId, 'visibility', mapVisible ? 'visible' : 'none');
         }
 
         // Toggle card item in list
@@ -891,10 +939,18 @@ function renderTrackList() {
             ? `${+d} ${monthName} ${y} at ${takeoffTime}`
             : `${+d} ${monthName} ${y}`;
 
+        const isHidden = track.userVisible === false;
         card.innerHTML = `
             <div class="track-card-header">
                 <span class="track-card-title" title="${track.filename}">${cardTitle}</span>
-                <button class="delete-btn" data-id="${track.id}" title="Delete Flight">🗑</button>
+                <div class="track-card-actions">
+                    <button class="toggle-visibility-btn ${isHidden ? 'user-hidden' : ''}" data-id="${track.id}" title="${isHidden ? 'Show Flight' : 'Hide Flight'}">
+                        <i data-feather="${isHidden ? 'eye-off' : 'eye'}"></i>
+                    </button>
+                    <button class="delete-btn" data-id="${track.id}" title="Delete Flight">
+                        <i data-feather="trash-2"></i>
+                    </button>
+                </div>
             </div>
             ${track.site ? `<div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">📍 ${track.site}</div>` : ''}
             <div style="display:flex; align-items:center; justify-content:space-between; margin-top:5px">
@@ -915,6 +971,13 @@ function renderTrackList() {
             selectTrack(track.id);
         });
 
+        // Card visibility toggle trigger (prevent selecting card)
+        const toggleBtn = card.querySelector('.toggle-visibility-btn');
+        toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleTrackVisibility(track.id);
+        });
+
         // Card delete trigger (prevent selecting card)
         const deleteBtn = card.querySelector('.delete-btn');
         deleteBtn.addEventListener('click', (e) => {
@@ -927,6 +990,42 @@ function renderTrackList() {
 
     // Show/hide empty state based on whether any cards were rendered
     placeholder.style.display = sorted.length === 0 ? '' : 'none';
+
+    // Replace Feather icons dynamically
+    feather.replace();
+}
+
+function toggleTrackVisibility(trackId) {
+    const track = state.tracks.find(t => t.id === trackId);
+    if (!track) return;
+
+    // Toggle visibility state
+    track.userVisible = track.userVisible !== false ? false : true;
+
+    // Apply the visibility update to the map layer
+    const layerId = `layer-track-${track.id}`;
+    if (map && map.getLayer(layerId)) {
+        const matchesSearch = (track.pilot || '').toLowerCase().includes(state.filters.search) || 
+                              (track.glider || '').toLowerCase().includes(state.filters.search) ||
+                              track.filename.toLowerCase().includes(state.filters.search);
+        const matchesDistance = track.stats.fivePoint >= state.filters.minDistance;
+        const isVisible = matchesSearch && matchesDistance && (track.userVisible !== false);
+
+        map.setLayoutProperty(layerId, 'visibility', isVisible ? 'visible' : 'none');
+    }
+
+    // Sync active track visibility icon in header if active
+    if (state.activeTrackId === track.id) {
+        const detailVisibilityIcon = document.getElementById('icon-detail-visibility');
+        if (detailVisibilityIcon) {
+            const isHidden = track.userVisible === false;
+            detailVisibilityIcon.setAttribute('data-feather', isHidden ? 'eye-off' : 'eye');
+            feather.replace();
+        }
+    }
+
+    // Re-render the track list to update the icon state
+    renderTrackList();
 }
 
 // --- HUD Flight Simulation / Playback ---

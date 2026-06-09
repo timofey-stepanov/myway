@@ -525,6 +525,22 @@ body {
     color: var(--color-text-muted);
 }
 
+.detail-metadata-summary {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    padding: 0.6rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    align-items: center;
+}
+
+.detail-metadata-summary span {
+    color: var(--color-text-main);
+    font-weight: 500;
+}
+
 .btn-close {
     background: transparent;
     border: none;
@@ -843,26 +859,54 @@ body {
     }
 }
 
-/* Track Card Delete Button */
-.track-card .delete-btn {
-    opacity: 0;
-    transition: opacity 0.2s ease;
+/* Track Card Actions (Visibility toggle and delete buttons) */
+.track-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.track-card-actions button {
     background: transparent;
     border: none;
-    color: var(--color-text-dim);
     cursor: pointer;
-    font-size: 0.85rem;
     padding: 2px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    color: var(--color-text-muted);
+    transition: opacity 0.2s ease, color 0.2s ease;
 }
-.track-card:hover .delete-btn {
-    opacity: 0.6;
+
+.track-card-actions button svg {
+    width: 14px;
+    height: 14px;
+    stroke-width: 2px;
 }
+
+.track-card .delete-btn,
+.track-card .toggle-visibility-btn {
+    opacity: 0;
+}
+
+/* If track is manually hidden, visibility icon remains permanently visible but semi-transparent */
+.track-card .toggle-visibility-btn.user-hidden {
+    opacity: 0.45;
+}
+
+.track-card:hover .delete-btn,
+.track-card:hover .toggle-visibility-btn {
+    opacity: 0.7;
+}
+
 .track-card:hover .delete-btn:hover {
     opacity: 1;
     color: var(--color-danger) !important;
+}
+
+.track-card:hover .toggle-visibility-btn:hover {
+    opacity: 1;
+    color: var(--color-primary) !important;
 }
 
 /* Theme Toggle Button styling */
