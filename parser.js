@@ -179,7 +179,8 @@ class IGCParser {
 
         const speedBuffer = [];
         const climbBuffer = [];
-        const windowSize = 5; // 5-second smoothing window
+        const speedWindowSize = 10; // 10-second smoothing window for speed
+        const climbWindowSize = 5;  // 5-second smoothing window for climb/sink
 
         let lastParsedPoint = null;
 
@@ -213,8 +214,8 @@ class IGCParser {
                     const speed = (distM / timeDiff) * 3.6;
                     if (speed < 150) {
                         speedBuffer.push(speed);
-                        if (speedBuffer.length > windowSize) speedBuffer.shift();
-                        if (speedBuffer.length === windowSize) {
+                        if (speedBuffer.length > speedWindowSize) speedBuffer.shift();
+                        if (speedBuffer.length === speedWindowSize) {
                             const avgSpeed = speedBuffer.reduce((a, b) => a + b, 0) / speedBuffer.length;
                             if (avgSpeed > stats.maxSpeed) stats.maxSpeed = avgSpeed;
                         }
@@ -222,8 +223,8 @@ class IGCParser {
 
                     const climb = (altitude - prevAlt) / timeDiff;
                     climbBuffer.push(climb);
-                    if (climbBuffer.length > windowSize) climbBuffer.shift();
-                    if (climbBuffer.length === windowSize) {
+                    if (climbBuffer.length > climbWindowSize) climbBuffer.shift();
+                    if (climbBuffer.length === climbWindowSize) {
                         const avgClimb = climbBuffer.reduce((a, b) => a + b, 0) / climbBuffer.length;
                         if (avgClimb > stats.maxClimb) stats.maxClimb = avgClimb;
                         if (avgClimb < stats.maxSink) stats.maxSink = avgClimb;
