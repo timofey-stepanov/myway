@@ -21,49 +21,7 @@ class IGCParser {
         let site = '';
         const rawHeaders = [];
 
-        // Pre-scan to count B-records for dynamic downsampling
-        let bRecordCount = 0;
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            if (line && line[0] === 'B') {
-                bRecordCount++;
-            }
-        }
-
-        // We want to limit points in memory to ~2000 per track for buttery-smooth SVG rendering
-        const sampleRate = Math.max(1, Math.ceil(bRecordCount / 2000));
-
-        const stats = {
-            distance: 0,
-            duration: 0,
-            maxAlt: 0,
-            minAlt: Infinity,
-            heightGain: 0,
-            avgSpeed: 0,
-            maxSpeed: 0,
-            maxClimb: 0,
-            maxSink: 0,
-            startAlt: 0,
-            endAlt: 0
-        };
-
-        let totalDistanceM = 0;
-        let firstSec = null;
-        let lastSec = null;
-
-        // Telemetry calculation variables
-        let prevLat = null;
-        let prevLng = null;
-        let prevAlt = null;
-        let prevTimeSec = null;
-
-        const speedBuffer = [];
-        const climbBuffer = [];
-        const windowSize = 5; // 5-second smoothing window
-
-        let bIndex = 0;
-        let lastParsedPoint = null;
-
+        const rawPoints = [];
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             if (!line) continue;
@@ -85,12 +43,6 @@ class IGCParser {
                 }
             } else if (recordType === 'B') {
                 if (line.length < 35) continue;
-
-                // Parse B-record primitives
-                const validity = line[24];
-                if (validity !== 'A' && validity !== 'a') {
-                    // Skip invalid fixes if FAI standard indicates warning
-                }
 
                 // Extract lat/lng strings
                 const latPart = line.substring(7, 15);
@@ -121,64 +73,175 @@ class IGCParser {
                     continue;
                 }
 
-                bIndex++;
-
-                // Update flight metadata
-                if (firstSec === null) {
-                    firstSec = timeSec;
-                    stats.startAlt = altitude;
-                    stats.minAlt = altitude;
-                    stats.maxAlt = altitude;
-                }
-
-                lastSec = timeSec;
-
-                // Compute statistics using high-resolution points
-                if (prevLat !== null) {
-                    const distM = this._haversine(prevLat, prevLng, lat, lon);
-                    totalDistanceM += distM;
-
-                    if (altitude > stats.maxAlt) stats.maxAlt = altitude;
-                    if (altitude < stats.minAlt) stats.minAlt = altitude;
-
-                    const timeDiff = timeSec - prevTimeSec;
-                    if (timeDiff > 0 && timeDiff < 600) {
-                        const speed = (distM / timeDiff) * 3.6;
-                        if (speed < 150) {
-                            speedBuffer.push(speed);
-                            if (speedBuffer.length > windowSize) speedBuffer.shift();
-                            const avgSpeed = speedBuffer.reduce((a, b) => a + b, 0) / speedBuffer.length;
-                            if (avgSpeed > stats.maxSpeed) stats.maxSpeed = avgSpeed;
-                        }
-
-                        const climb = (altitude - prevAlt) / timeDiff;
-                        climbBuffer.push(climb);
-                        if (climbBuffer.length > windowSize) climbBuffer.shift();
-                        const avgClimb = climbBuffer.reduce((a, b) => a + b, 0) / climbBuffer.length;
-                        if (avgClimb > stats.maxClimb) stats.maxClimb = avgClimb;
-                        if (avgClimb < stats.maxSink) stats.maxSink = avgClimb;
-                    }
-                }
-
-                prevLat = lat;
-                prevLng = lon;
-                prevAlt = altitude;
-                prevTimeSec = timeSec;
-
                 const timeStr = `${timePart.substring(0, 2)}:${timePart.substring(2, 4)}:${timePart.substring(4, 6)}`;
-                lastParsedPoint = {
+                rawPoints.push({
                     timeStr,
                     timeSec,
                     lat,
                     lng: lon,
                     alt: altitude
-                };
+                });
+            }
+        }
 
-                // Only store a point in the points array if it satisfies our sampling step
-                // Always keep the very first point
-                if (points.length === 0 || bIndex % sampleRate === 0) {
-                    points.push(lastParsedPoint);
+        // 1. Coordinate Sanity Filter: Discard any points near (0, 0)
+        let filteredPoints = rawPoints.filter(p => Math.abs(p.lat) > 0.5 || Math.abs(p.lng) > 0.5);
+
+        // 2. Startup Settling Trimming (Option B): Trim initialization GPS jumps at the start
+        let trimIndex = 0;
+        const checkCount = Math.min(15, filteredPoints.length - 1);
+        for (let i = 0; i < checkCount; i++) {
+            const p0 = filteredPoints[i];
+            const p1 = filteredPoints[i+1];
+            let dt = p1.timeSec - p0.timeSec;
+            if (dt < 0) dt += 86400; // Midnight wrap
+            if (dt > 0) {
+                const distM = this._haversine(p0.lat, p0.lng, p1.lat, p1.lng);
+                const speed = (distM / dt) * 3.6;
+                const climb = Math.abs(p1.alt - p0.alt) / dt;
+                if (speed > 100 || climb > 25) {
+                    trimIndex = i + 1;
                 }
+            }
+        }
+        if (trimIndex > 0) {
+            filteredPoints = filteredPoints.slice(trimIndex);
+        }
+
+        // 3. Mid-Track Spike Filtering: Rolling 3-point filter to drop single-point coordinate/altitude spikes
+        const cleanedPoints = [];
+        for (let i = 0; i < filteredPoints.length; i++) {
+            if (i === 0 || i === filteredPoints.length - 1) {
+                cleanedPoints.push(filteredPoints[i]);
+                continue;
+            }
+            const p0 = filteredPoints[i - 1];
+            const p1 = filteredPoints[i];
+            const p2 = filteredPoints[i + 1];
+
+            let dt1 = p1.timeSec - p0.timeSec;
+            if (dt1 < 0) dt1 += 86400;
+            let dt2 = p2.timeSec - p1.timeSec;
+            if (dt2 < 0) dt2 += 86400;
+            let dtTotal = p2.timeSec - p0.timeSec;
+            if (dtTotal < 0) dtTotal += 86400;
+
+            if (dt1 > 0 && dt2 > 0 && dtTotal > 0) {
+                const dist1 = this._haversine(p0.lat, p0.lng, p1.lat, p1.lng);
+                const dist2 = this._haversine(p1.lat, p1.lng, p2.lat, p2.lng);
+                const distTotal = this._haversine(p0.lat, p0.lng, p2.lat, p2.lng);
+
+                const speed1 = (dist1 / dt1) * 3.6;
+                const speed2 = (dist2 / dt2) * 3.6;
+                const speedTotal = (distTotal / dtTotal) * 3.6;
+
+                const climb1 = (p1.alt - p0.alt) / dt1;
+                const climb2 = (p2.alt - p1.alt) / dt2;
+                const climbTotal = (p2.alt - p0.alt) / dtTotal;
+
+                const isSpeedSpike = speed1 > 150 && speed2 > 150 && speedTotal < 100;
+                const isAltSpike = Math.abs(climb1) > 30 && Math.abs(climb2) > 30 && (climb1 * climb2 < 0) && Math.abs(climbTotal) < 10;
+
+                if (isSpeedSpike || isAltSpike) {
+                    continue;
+                }
+            }
+            cleanedPoints.push(p1);
+        }
+        filteredPoints = cleanedPoints;
+
+        // Limit points in memory to ~2000 per track for buttery-smooth SVG rendering
+        const sampleRate = Math.max(1, Math.ceil(filteredPoints.length / 2000));
+
+        const stats = {
+            distance: 0,
+            duration: 0,
+            maxAlt: 0,
+            minAlt: Infinity,
+            heightGain: 0,
+            avgSpeed: 0,
+            maxSpeed: 0,
+            maxClimb: 0,
+            maxSink: 0,
+            startAlt: 0,
+            endAlt: 0
+        };
+
+        let totalDistanceM = 0;
+        let firstSec = null;
+        let lastSec = null;
+
+        // Telemetry calculation variables
+        let prevLat = null;
+        let prevLng = null;
+        let prevAlt = null;
+        let prevTimeSec = null;
+
+        const speedBuffer = [];
+        const climbBuffer = [];
+        const windowSize = 5; // 5-second smoothing window
+
+        let lastParsedPoint = null;
+
+        for (let i = 0; i < filteredPoints.length; i++) {
+            const p = filteredPoints[i];
+            const lat = p.lat;
+            const lon = p.lng;
+            const altitude = p.alt;
+            const timeSec = p.timeSec;
+
+            // Update flight metadata
+            if (firstSec === null) {
+                firstSec = timeSec;
+                stats.startAlt = altitude;
+                stats.minAlt = altitude;
+                stats.maxAlt = altitude;
+            }
+
+            lastSec = timeSec;
+
+            // Compute statistics using high-resolution points
+            if (prevLat !== null) {
+                const distM = this._haversine(prevLat, prevLng, lat, lon);
+                totalDistanceM += distM;
+
+                if (altitude > stats.maxAlt) stats.maxAlt = altitude;
+                if (altitude < stats.minAlt) stats.minAlt = altitude;
+
+                const timeDiff = timeSec - prevTimeSec;
+                if (timeDiff > 0 && timeDiff < 600) {
+                    const speed = (distM / timeDiff) * 3.6;
+                    if (speed < 150) {
+                        speedBuffer.push(speed);
+                        if (speedBuffer.length > windowSize) speedBuffer.shift();
+                        if (speedBuffer.length === windowSize) {
+                            const avgSpeed = speedBuffer.reduce((a, b) => a + b, 0) / speedBuffer.length;
+                            if (avgSpeed > stats.maxSpeed) stats.maxSpeed = avgSpeed;
+                        }
+                    }
+
+                    const climb = (altitude - prevAlt) / timeDiff;
+                    climbBuffer.push(climb);
+                    if (climbBuffer.length > windowSize) climbBuffer.shift();
+                    if (climbBuffer.length === windowSize) {
+                        const avgClimb = climbBuffer.reduce((a, b) => a + b, 0) / climbBuffer.length;
+                        if (avgClimb > stats.maxClimb) stats.maxClimb = avgClimb;
+                        if (avgClimb < stats.maxSink) stats.maxSink = avgClimb;
+                    }
+                }
+            }
+
+            prevLat = lat;
+            prevLng = lon;
+            prevAlt = altitude;
+            prevTimeSec = timeSec;
+
+            lastParsedPoint = p;
+
+            // Only store a point in the points array if it satisfies our sampling step
+            // Always keep the very first point
+            if (points.length === 0 || i % sampleRate === 0) {
+                points.push(lastParsedPoint);
             }
         }
 
@@ -579,7 +642,7 @@ class XCSolver {
 
         result.xcontestPoints = Math.round(bestPoints * 100) / 100;
         result.xcontestType = bestType;
-        result.scoringVersion = 3;
+        result.scoringVersion = 4;
 
         return result;
     }

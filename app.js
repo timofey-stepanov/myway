@@ -1565,9 +1565,91 @@ async function loadStoredTracks() {
                     needsResave = true;
                 }
 
-                if (!track.stats || track.stats.scoringVersion !== 3) {
-                    const xcStats = XCSolver.solve(track.points || []);
+                if (!track.stats || track.stats.scoringVersion !== 4) {
                     track.stats = track.stats || {};
+                    
+                    // 1. Coordinate Sanity Filter: Filter out any (0,0) coordinates from track.points
+                    if (track.points && track.points.length > 0) {
+                        track.points = track.points.filter(p => Math.abs(p.lat) > 0.5 || Math.abs(p.lng) > 0.5);
+                    }
+
+                    if (track.points && track.points.length > 0) {
+                        // 2. Recalculate basic stats from the remaining downsampled points
+                        const alts = track.points.map(p => p.alt);
+                        track.stats.maxAlt = Math.max(...alts);
+                        track.stats.minAlt = Math.min(...alts);
+                        track.stats.startAlt = track.points[0].alt;
+                        track.stats.endAlt = track.points[track.points.length - 1].alt;
+                        track.stats.heightGain = Math.max(0, track.stats.maxAlt - track.stats.startAlt);
+
+                        // Recalculate duration
+                        const firstSec = track.points[0].timeSec;
+                        const lastSec = track.points[track.points.length - 1].timeSec;
+                        if (lastSec >= firstSec) {
+                            track.stats.duration = lastSec - firstSec;
+                        } else {
+                            track.stats.duration = (86400 - firstSec) + lastSec;
+                        }
+
+                        // Recalculate tracklogLength, distance, and smoothed stats (maxSpeed, maxClimb, maxSink)
+                        let totalDistM = 0;
+                        let maxSpeed = 0;
+                        let maxClimb = 0;
+                        let maxSink = 0;
+                        const speedBuffer = [];
+                        const climbBuffer = [];
+                        const migrationWindowSize = 3;
+
+                        for (let k = 1; k < track.points.length; k++) {
+                            const p0 = track.points[k - 1];
+                            const p1 = track.points[k];
+                            let dt = p1.timeSec - p0.timeSec;
+                            if (dt < 0) dt += 86400; // Midnight wrap
+
+                            const distM = IGCParser._haversine(p0.lat, p0.lng, p1.lat, p1.lng);
+                            totalDistM += distM;
+
+                            if (dt > 0 && dt < 600) {
+                                const speed = (distM / dt) * 3.6;
+                                if (speed < 150) {
+                                    speedBuffer.push(speed);
+                                    if (speedBuffer.length > migrationWindowSize) speedBuffer.shift();
+                                    if (speedBuffer.length === migrationWindowSize) {
+                                        const avgSpeed = speedBuffer.reduce((a, b) => a + b, 0) / speedBuffer.length;
+                                        if (avgSpeed > maxSpeed) maxSpeed = avgSpeed;
+                                    }
+                                }
+
+                                const climb = (p1.alt - p0.alt) / dt;
+                                climbBuffer.push(climb);
+                                if (climbBuffer.length > migrationWindowSize) climbBuffer.shift();
+                                if (climbBuffer.length === migrationWindowSize) {
+                                    const avgClimb = climbBuffer.reduce((a, b) => a + b, 0) / climbBuffer.length;
+                                    if (avgClimb > maxClimb) maxClimb = avgClimb;
+                                    if (avgClimb < maxSink) maxSink = avgClimb;
+                                }
+                            }
+                        }
+                        track.stats.tracklogLength = Math.round((totalDistM / 1000) * 100) / 100;
+                        track.stats.distance = track.stats.tracklogLength;
+                        track.stats.maxSpeed = Math.round(maxSpeed * 10) / 10;
+                        track.stats.maxClimb = Math.round(maxClimb * 10) / 10;
+                        track.stats.maxSink = Math.round(maxSink * 10) / 10;
+                    } else {
+                        track.stats.maxAlt = 0;
+                        track.stats.minAlt = 0;
+                        track.stats.startAlt = 0;
+                        track.stats.endAlt = 0;
+                        track.stats.duration = 0;
+                        track.stats.tracklogLength = 0;
+                        track.stats.distance = 0;
+                        track.stats.maxSpeed = 0;
+                        track.stats.maxClimb = 0;
+                        track.stats.maxSink = 0;
+                    }
+
+                    // 3. Recalculate XC scoring (XCSolver returns stats with scoringVersion = 4)
+                    const xcStats = XCSolver.solve(track.points || []);
                     Object.assign(track.stats, xcStats);
                     if (track.stats.duration > 0) {
                         track.stats.avgSpeed = Math.round((xcStats.fivePoint / (track.stats.duration / 3600)) * 10) / 10;
