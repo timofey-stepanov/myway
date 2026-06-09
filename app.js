@@ -458,7 +458,7 @@ function addTracks(newTracks) {
 
         // Assign color and id
         track.id = state.nextId++;
-        track.color = TRACK_COLORS[(track.id - 1) % TRACK_COLORS.length];
+        track.color = TRACK_COLORS[Math.floor(Math.random() * TRACK_COLORS.length)];
         track.visible = true;
         
         state.tracks.push(track);
@@ -479,7 +479,6 @@ function addTracks(newTracks) {
     }
 
     if (addedCount > 0) {
-        optimizeTrackColors();
         updateDistanceSliderRange();
     }
 
@@ -568,142 +567,7 @@ function drawTrackOnMap(track) {
     });
 }
 
-function optimizeTrackColors() {
-    const N = state.tracks.length;
-    if (N === 0) return;
 
-    // 1. Pre-calculate bounding boxes and 10-point downsampled representations for fast distance checks
-    const representations = state.tracks.map(track => {
-        const bbox = {
-            minLng: Infinity, maxLng: -Infinity,
-            minLat: Infinity, maxLat: -Infinity
-        };
-        track.points.forEach(p => {
-            if (p.lng < bbox.minLng) bbox.minLng = p.lng;
-            if (p.lng > bbox.maxLng) bbox.maxLng = p.lng;
-            if (p.lat < bbox.minLat) bbox.minLat = p.lat;
-            if (p.lat > bbox.maxLat) bbox.maxLat = p.lat;
-        });
-
-        // Downsample to 10 points
-        const step = Math.max(1, Math.floor(track.points.length / 10));
-        const pts = [];
-        for (let i = 0; i < track.points.length; i += step) {
-            pts.push(track.points[i]);
-        }
-        if (pts.length > 0 && pts[pts.length - 1] !== track.points[track.points.length - 1]) {
-            pts.push(track.points[track.points.length - 1]);
-        }
-
-        return { id: track.id, bbox, pts };
-    });
-
-    // 2. Build adjacency list of overlaps (conflicts)
-    const adjacency = {};
-    state.tracks.forEach(t => adjacency[t.id] = new Set());
-
-    for (let i = 0; i < N; i++) {
-        const repA = representations[i];
-        for (let j = i + 1; j < N; j++) {
-            const repB = representations[j];
-
-            // Quick reject: Bounding boxes do not overlap
-            const bboxOverlap = !(
-                repA.bbox.maxLng < repB.bbox.minLng ||
-                repA.bbox.minLng > repB.bbox.maxLng ||
-                repA.bbox.maxLat < repB.bbox.minLat ||
-                repA.bbox.minLat > repB.bbox.maxLat
-            );
-
-            if (!bboxOverlap) continue;
-
-            // Bounding boxes overlap, check distance between downsampled points
-            let isClose = false;
-            for (let pA = 0; pA < repA.pts.length; pA++) {
-                const ptA = repA.pts[pA];
-                for (let pB = 0; pB < repB.pts.length; pB++) {
-                    const ptB = repB.pts[pB];
-                    // Fast Euclidean squared-distance check (approx. 3km threshold)
-                    const dLng = ptA.lng - ptB.lng;
-                    const dLat = ptA.lat - ptB.lat;
-                    if (dLng * dLng + dLat * dLat < 0.001) {
-                        isClose = true;
-                        break;
-                    }
-                }
-                if (isClose) break;
-            }
-
-            if (isClose) {
-                adjacency[repA.id].add(repB.id);
-                adjacency[repB.id].add(repA.id);
-            }
-        }
-    }
-
-    // 3. Greedy coloring
-    // Sort tracks by degree (number of conflicts) descending to color the most constrained tracks first
-    const sortedTrackIds = state.tracks
-        .map(t => t.id)
-        .sort((idA, idB) => adjacency[idB].size - adjacency[idA].size);
-
-    const colorsAssigned = {}; // id -> color hex
-
-    sortedTrackIds.forEach(id => {
-        // Find colors used by neighbors
-        const neighborColors = new Set();
-        adjacency[id].forEach(neighborId => {
-            if (colorsAssigned[neighborId]) {
-                neighborColors.add(colorsAssigned[neighborId]);
-            }
-        });
-
-        // Assign the first color in TRACK_COLORS that is not used by any neighbor
-        let assignedColor = null;
-        for (let c = 0; c < TRACK_COLORS.length; c++) {
-            const color = TRACK_COLORS[c];
-            if (!neighborColors.has(color)) {
-                assignedColor = color;
-                break;
-            }
-        }
-
-        // Fallback: if all colors are used, pick the least used color among neighbors
-        if (!assignedColor) {
-            const colorUsageCounts = {};
-            TRACK_COLORS.forEach(c => colorUsageCounts[c] = 0);
-            adjacency[id].forEach(neighborId => {
-                const c = colorsAssigned[neighborId];
-                if (c) colorUsageCounts[c]++;
-            });
-            // Pick color with minimum usage among neighbors
-            assignedColor = TRACK_COLORS.reduce((minColor, color) => {
-                return colorUsageCounts[color] < colorUsageCounts[minColor] ? color : minColor;
-            }, TRACK_COLORS[0]);
-        }
-
-        colorsAssigned[id] = assignedColor;
-    });
-
-    // 4. Update track colors in state and map layers
-    state.tracks.forEach(track => {
-        const newColor = colorsAssigned[track.id];
-        if (track.color !== newColor) {
-            track.color = newColor;
-            
-            // Update map layer color if it exists
-            const layerId = `layer-track-${track.id}`;
-            if (map && map.getLayer(layerId)) {
-                map.setPaintProperty(layerId, 'line-color', newColor);
-            }
-            
-            // Save updated track to IndexedDB
-            StorageManager.saveTrack(track).catch(err => {
-                console.error('Failed to save re-colored track:', err);
-            });
-        }
-    });
-}
 
 function fitMapBoundsToVisibleTracks() {
     const visibleTracks = state.tracks.filter(t => t.visible);
@@ -1476,14 +1340,15 @@ async function loadStoredTracks() {
             const maxId = Math.max(...stored.map(t => t.id), 0);
             state.nextId = maxId + 1;
 
+            const shouldRandomizeAll = !localStorage.getItem('myway_colors_randomized');
+
             for (let i = 0; i < stored.length; i++) {
                 const track = stored[i];
                 let needsResave = false;
 
-                // Upgrade color to the new vibrant high-contrast palette
-                const newColor = TRACK_COLORS[(track.id - 1) % TRACK_COLORS.length];
-                if (track.color !== newColor) {
-                    track.color = newColor;
+                // Ensure track has a color, assign a random one if missing or if migrating
+                if (shouldRandomizeAll || !track.color) {
+                    track.color = TRACK_COLORS[Math.floor(Math.random() * TRACK_COLORS.length)];
                     needsResave = true;
                 }
 
@@ -1557,6 +1422,10 @@ async function loadStoredTracks() {
                 state.tracks.push(track);
             }
 
+            if (shouldRandomizeAll) {
+                localStorage.setItem('myway_colors_randomized', 'true');
+            }
+
             // Make sure map is loaded before drawing layers
             runWhenMapLoaded(() => {
                 drawStoredTracks();
@@ -1584,7 +1453,6 @@ function drawStoredTracks() {
     state.tracks.forEach(track => {
         drawTrackOnMap(track);
     });
-    optimizeTrackColors();
     updateDistanceSliderRange();
     renderTrackList();
     applyFilters();
@@ -1611,7 +1479,6 @@ async function deleteSingleTrack(id) {
         // Delete from local state array
         state.tracks = state.tracks.filter(t => t.id !== id);
 
-        optimizeTrackColors();
         updateDistanceSliderRange();
 
         renderTrackList();
